@@ -1,0 +1,18 @@
+{
+  "name": "fft-visualization",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "^6.4.1"
+  }
+}

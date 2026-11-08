@@ -1,0 +1,14 @@
+{
+  // Visit https://aka.ms/tsconfig to read more about this file
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "es2020",
+    "lib": [
+      "es2020",
+      "dom"
+    ],
+    "outDir": "./dist",
+    "strict": true
+  },
+  "include": ["source/**/*.ts"]
+}

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="theme-color" content="#080b14">
+	<title>Octave Spiral FFT</title>
+	<style>
+		:root {
+			color-scheme: dark;
+			font-family: system-ui, sans-serif;
+			background: #080b14;
+			color: #edf3ff;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			width: 100vw;
+			height: 100vh;
+			height: 100dvh;
+			margin: 0;
+			overflow: hidden;
+		}
+
+		main {
+			display: flex;
+			flex-direction: column;
+			width: 100%;
+			height: 100%;
+		}
+
+		.top-bar {
+			z-index: 1;
+			display: grid;
+			grid-template-columns: 1fr auto 1fr;
+			flex: 0 0 48px;
+			align-items: center;
+			padding: 0 0.75rem;
+			background: rgba(8, 11, 20, 0.92);
+		}
+
+		h1 {
+			margin: 0;
+			color: #aab8d0;
+			font-size: 1.5rem;
+			font-weight: 550;
+			letter-spacing: 0.01em;
+		}
+
+		button {
+			font: inherit;
+			cursor: pointer;
+		}
+
+		.menu-button,
+		.close-button,
+		.mic-button {
+			display: grid;
+			width: 40px;
+			height: 40px;
+			place-items: center;
+			border: 1px solid #29364b;
+			border-radius: 0.55rem;
+			background: #111827;
+			color: #edf3ff;
+		}
+
+		.menu-button:hover,
+		.close-button:hover {
+			background: #1b2940;
+		}
+
+		.menu-button {
+			justify-self: end;
+		}
+
+		.mic-button {
+			position: relative;
+			justify-self: center;
+			border-color: #9c303c;
+			background: #a92d3b;
+		}
+
+		.mic-button:hover,
+		.mic-button[data-active="false"] {
+			background: #a92d3b;
+		}
+
+		.mic-button[data-active="true"] {
+			border-color: #21834a;
+			background: #16803c;
+		}
+
+		.mic-button[data-active="true"]:hover {
+			background: #1b9650;
+		}
+
+		.mic-button:disabled {
+			cursor: wait;
+			opacity: 0.65;
+		}
+
+		.mic-button svg {
+			position: absolute;
+			width: 21px;
+			height: 21px;
+		}
+
+		.mic-button[data-active="true"] .mic-muted-icon,
+		.mic-button[data-active="false"] .mic-active-icon {
+			display: none;
+		}
+
+		.mic-hint {
+			position: absolute;
+			z-index: 2;
+			top: calc(100% + 10px);
+			left: 50%;
+			width: max-content;
+			max-width: min(360px, calc(100vw - 24px));
+			padding: 0.6rem 0.75rem;
+			border: 1px solid #536985;
+			border-radius: 0.5rem;
+			background: #182235;
+			box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+			color: #edf3ff;
+			font-size: 0.78rem;
+			font-weight: 450;
+			line-height: 1.4;
+			text-align: center;
+			white-space: normal;
+			transform: translateX(-50%);
+		}
+
+		.mic-hint::before {
+			position: absolute;
+			top: -7px;
+			left: 50%;
+			width: 12px;
+			height: 12px;
+			border-top: 1px solid #536985;
+			border-left: 1px solid #536985;
+			background: #182235;
+			content: "";
+			transform: translateX(-50%) rotate(45deg);
+		}
+
+		.mic-hint[hidden] {
+			display: none;
+		}
+
+		.visualizer {
+			position: relative;
+			display: grid;
+			flex: 1;
+			min-height: 0;
+			place-items: center;
+			width: 100%;
+		}
+
+		canvas {
+			display: block;
+			width: min(100%, calc(100dvh - 52px));
+			height: min(100%, calc(100dvh - 52px));
+			aspect-ratio: 1;
+		}
+
+		.tooltip {
+			position: absolute;
+			z-index: 1;
+			display: none;
+			padding: 0.45rem 0.6rem;
+			border: 1px solid #536985;
+			border-radius: 0.4rem;
+			background: rgba(15, 23, 38, 0.96);
+			color: #edf3ff;
+			font-size: 0.8rem;
+			font-variant-numeric: tabular-nums;
+			white-space: nowrap;
+			pointer-events: none;
+			transform: translate(0.7rem, 0.7rem);
+		}
+
+		.drawer-backdrop {
+			position: fixed;
+			z-index: 2;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			border: 0;
+			background: rgba(0, 0, 0, 0.58);
+		}
+
+		.settings-panel {
+			position: fixed;
+			z-index: 3;
+			inset: 0 0 0 auto;
+			width: min(360px, calc(100vw - 28px));
+			height: 100%;
+			height: 100dvh;
+			overflow-y: auto;
+			padding: 1rem 1.15rem 1.5rem;
+			border-left: 1px solid #29364b;
+			background: #0e1420;
+			box-shadow: -16px 0 48px rgba(0, 0, 0, 0.3);
+		}
+
+		.settings-panel[hidden],
+		.drawer-backdrop[hidden] {
+			display: none;
+		}
+
+		.drawer-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 1.25rem;
+		}
+
+		.drawer-header h2 {
+			margin: 0;
+			font-size: 1.1rem;
+		}
+
+		.description {
+			margin: 0 0 1.4rem;
+			color: #aab8d0;
+			font-size: 0.9rem;
+			line-height: 1.5;
+		}
+
+		.resolution-control {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 0.45rem 0.75rem;
+			align-items: center;
+			margin-top: 1.25rem;
+		}
+
+		.resolution-control label {
+			font-size: 0.9rem;
+			font-weight: 600;
+		}
+
+		.resolution-control output {
+			color: #b8c5da;
+			font-size: 0.85rem;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.resolution-control input {
+			grid-column: 1 / -1;
+			width: 100%;
+			accent-color: #8bc7ff;
+		}
+
+		.resolution-help {
+			grid-column: 1 / -1;
+			margin: 0;
+			color: #8292ad;
+			font-size: 0.78rem;
+			line-height: 1.4;
+		}
+
+		.color-control {
+			display: grid;
+			grid-template-columns: 1fr 72px;
+			gap: 0.45rem 0.75rem;
+			align-items: center;
+			margin-top: 1.25rem;
+		}
+
+		.color-control label {
+			font-size: 0.9rem;
+			font-weight: 600;
+		}
+
+		.color-control>input[type="color"] {
+			width: 72px;
+			height: 36px;
+			padding: 3px;
+			border: 1px solid #29364b;
+			border-radius: 0.4rem;
+			background: #111827;
+			cursor: pointer;
+		}
+
+		.color-opacity {
+			display: grid;
+			grid-column: 1 / -1;
+			grid-template-columns: 1fr auto;
+			gap: 0.35rem 0.75rem;
+			align-items: center;
+		}
+
+		.color-opacity label,
+		.color-opacity output {
+			font-size: 0.8rem;
+		}
+
+		.color-opacity output {
+			color: #b8c5da;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.color-opacity input {
+			grid-column: 1 / -1;
+			width: 100%;
+			accent-color: #8bc7ff;
+		}
+
+		.color-help {
+			grid-column: 1 / -1;
+			margin: 0;
+			color: #8292ad;
+			font-size: 0.78rem;
+			line-height: 1.4;
+		}
+
+		:focus-visible {
+			outline: 2px solid #8bc7ff;
+			outline-offset: 3px;
+		}
+	</style>
+</head>
+
+<body>
+	<main>
+		<header class="top-bar">
+			<h1>Octave Spiral</h1>
+			<button id="toggle-microphone" class="mic-button" type="button" aria-label="Start microphone"
+				title="Start microphone" aria-pressed="false" aria-describedby="mic-hint" data-active="false">
+				<svg class="mic-active-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+					<rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8" />
+					<path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" stroke="currentColor" stroke-width="1.8"
+						stroke-linecap="round" />
+				</svg>
+				<svg class="mic-muted-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+					<rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8" />
+					<path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8M4 4l16 16" stroke="currentColor" stroke-width="1.8"
+						stroke-linecap="round" />
+				</svg>
+				<span id="mic-hint" class="mic-hint" role="status" aria-live="polite">Click to allow microphone access (required to visualize live audio).</span>
+			</button>
+			<button id="open-settings" class="menu-button" type="button" aria-label="Open settings"
+				aria-controls="settings-panel" aria-expanded="false">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+					<path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+				</svg>
+			</button>
+		</header>
+		<div class="visualizer">
+			<canvas id="spiral" aria-label="Live audio frequency spectrum on a ten-octave spiral"></canvas>
+			<div id="tooltip" class="tooltip" role="tooltip"></div>
+		</div>
+	</main>
+	<button id="drawer-backdrop" class="drawer-backdrop" type="button" aria-label="Close settings" hidden></button>
+	<aside id="settings-panel" class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title"
+		hidden>
+		<div class="drawer-header">
+			<h2 id="settings-title">Settings</h2>
+			<button id="close-settings" class="close-button" type="button" aria-label="Close settings">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+					<path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+				</svg>
+			</button>
+		</div>
+		<p class="description">
+			Each full turn is one octave, so the same pitch in different octaves shares an angle.
+			Hover the spiral to inspect a frequency and its nearest 12TET pitch.
+		</p>
+		<div class="resolution-control">
+			<label for="fft-resolution">FFT resolution</label>
+			<output id="fft-resolution-value" for="fft-resolution">32,768 samples</output>
+			<input id="fft-resolution" type="range" min="10" max="15" step="1" value="15"
+				aria-describedby="resolution-help">
+			<p id="resolution-help" class="resolution-help">
+				Higher resolution separates closer frequencies but responds more slowly.
+			</p>
+		</div>
+		<div class="resolution-control">
+			<label for="visual-gain">Display gain</label>
+			<output id="visual-gain-value" for="visual-gain">0 dB</output>
+			<input id="visual-gain" type="range" min="-24" max="24" step="1" value="0" aria-describedby="gain-help">
+			<p id="gain-help" class="resolution-help">
+				Adjust display sensitivity from −24 dB to +24 dB; 0 dB is neutral.
+			</p>
+		</div>
+		<div class="color-control">
+			<label for="gradient-start">Gradient start</label>
+			<input id="gradient-start" type="color" value="#101b68">
+			<div class="color-opacity">
+				<label for="gradient-start-opacity">Opacity</label>
+				<output id="gradient-start-opacity-value" for="gradient-start-opacity">0%</output>
+				<input id="gradient-start-opacity" type="range" min="0" max="100" step="1" value="0">
+			</div>
+			<p class="color-help">Opacity is interpolated as signal level rises.</p>
+		</div>
+		<div class="color-control">
+			<label for="gradient-end">Gradient end</label>
+			<input id="gradient-end" type="color" value="#00dc55">
+			<div class="color-opacity">
+				<label for="gradient-end-opacity">Opacity</label>
+				<output id="gradient-end-opacity-value" for="gradient-end-opacity">100%</output>
+				<input id="gradient-end-opacity" type="range" min="0" max="100" step="1" value="100">
+			</div>
+			<p class="color-help">Opacity is interpolated as signal level rises.</p>
+		</div>
+	</aside>
+	<script type="module" src="./chart.ts"></script>
+</body>
+
+</html>
